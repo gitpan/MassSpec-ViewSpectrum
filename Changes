@@ -12,5 +12,9 @@ Revision history for Perl extension MassSpec::ViewSpectrum.
 	- added title & extranegativeheight options, adjust x-axis size
 		computation, set fonts for axis labels, permitted negative
 		peak intensities ("pseudospectra")
+0.04  Fri Jan 29 15:14:24 2005
+	- permit suppression of annotations selected peaks labelled with
+		a leading '@'.  Note that when this option is selected, those
+		peaks are still colored according to their annotations.
 
 

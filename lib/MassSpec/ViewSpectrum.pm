@@ -11,7 +11,7 @@ use GD::Graph::colour qw(:lists :colours);
 
 our @ISA = qw(GD::Graph::Error);
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
 
 # Preloaded methods go here.
@@ -193,10 +193,18 @@ sub plot
 		my $annot = $self->{annotations}[$i];
 		my $mass = $self->{masses}[$i];
 		my $intensity = $self->{intensities}[$i];
+		my $discardThisAnnotation = 0;
+	
+		# by convention, a leading @ means discard this annotation, but
+		# use it for purposes of coloring the peak
+		if ($annot =~ m/^@/) {
+			$discardThisAnnotation = 1;
+			$annot =~ s/^.//;
+		}
 	
 		PATTERN:
 		foreach $pattern (keys %{$self->{annotationsmatching}}) {
-			if ($annot =~ m/$pattern/) {
+			if (defined($annot) && $pattern && $annot =~ m/$pattern/) {
 				$match = $self->{annotationsmatching}{$pattern};
 				last PATTERN;
 			}
@@ -213,12 +221,13 @@ sub plot
 		# compute the vertical height of the labels and don't want
 		# to require TrueType font availability in order to use
 		# GD's stringFT method
-		if ($intensity >= 0) {
-			_myannot($graph,$im,$mass,$intensity,$annot,$colors{$colorname},$self->{xlabeldelta},$self->{ylabeldelta});
-		} else {
-			_myannot($graph,$im,$mass,$minintensity*$self->{yaxismultiplier}*0.95,$annot,$colors{$colorname},$self->{xlabeldelta},0);
+		unless ($discardThisAnnotation) {
+			if ($intensity >= 0) {
+				_myannot($graph,$im,$mass,$intensity,$annot,$colors{$colorname},$self->{xlabeldelta},$self->{ylabeldelta});
+			} else {
+				_myannot($graph,$im,$mass,$minintensity*$self->{yaxismultiplier}*0.95,$annot,$colors{$colorname},$self->{xlabeldelta},0)
+			}
 		}
-		
 		
 	}
 	
@@ -377,7 +386,7 @@ Jonathan Epstein, E<lt>Jonathan_Epstein@nih.govE<gt>
 
                           PUBLIC DOMAIN NOTICE
 
-       National Institute for Child Health and Human Development
+        National Institute of Child Health and Human Development
 
  This software/database is a "United States Government Work" under the
  terms of the United States Copyright Act.  It was written as part of
