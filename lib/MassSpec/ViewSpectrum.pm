@@ -11,15 +11,19 @@ use GD::Graph::colour qw(:lists :colours);
 
 our @ISA = qw(GD::Graph::Error);
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 
 # Preloaded methods go here.
-my %defaultannotationsmatching = (
- '^y$|^y | y$| y ' => 'y',
- '^b$|^b | b$| b ' => 'b',
- 'internal' => 'internal',
- '^$' => 'none'
+
+# Pairs of pattern and their associated annotations category used in
+# conjunction with the colormap.  This is an array rather than a hash
+# because we want to consider the patterns in a prescribed order.
+my @defaultannotationsmatching = (
+ '^y$|^y[ -]| y$| y[ -]', 'y',
+ '^b$|^b[ -]| b$| b[ -]', 'b',
+ '[iI]nternal', 'internal',
+ '^$', 'none'
 );
 
 
@@ -31,6 +35,12 @@ my %defaultcolormap = (
 	'none' => 'black'
 );
 
+my %fontmap = (
+	'tiny' => gdTinyFont,
+	'small' => gdSmallFont,
+	'medium' => gdMediumBoldFont,
+	'large' => gdLargeFont,
+);
 
 my %Defaults = (
 	width => 500,
@@ -43,9 +53,10 @@ my %Defaults = (
 	xlabeldelta => 6, # pixels for offset of annotations
 	yaxismultiplier => 2.0, # a ratio, used to permit vertical room for peak annotations
 	outputformat => 'png',
+	peakfontsize => 'medium',
 	x_label => 'm/z',
-	y_label => 'Intensity',
-	annotationsmatching => \%defaultannotationsmatching,
+	y_label => 'Relative Intensity',
+	annotationsmatching => \@defaultannotationsmatching,
 	colormap => \%defaultcolormap,
 );
 
@@ -130,11 +141,12 @@ sub plot
 	# the min and max mass peaks will be obscured by the y axis and the graph's
 	# right boundary
 	#
-	# we also force these boundaries to be multiples of 5
+	# we also force the ticks multiples of 5
 	#
 	my $massdiff = $maxmass - $minmass;
-	$minmass = int(($minmass - 0.04 * $massdiff)/5.0) * 5;
-	$maxmass = int(($maxmass + 0.04 * $massdiff)/5.0 + 0.5) * 5;
+	my $tickconstraint = 5.0 * $self->{xticknumber};
+	$minmass = int(($minmass - 0.04 * $massdiff)/$tickconstraint) * $tickconstraint;
+	$maxmass = int(($maxmass + 0.04 * $massdiff)/$tickconstraint + 0.5) * $tickconstraint;
 	$minmass = 0 if $minmass < 0;
 
 	# note that we permit negative intensities; this permits some
@@ -159,16 +171,17 @@ sub plot
 	#
 	$graph->set(
 		title               => $self->{title},
-		x_label             => 'm/z',
+		x_label             => $self->{x_label},
 		x_label_position    => 0.5,
 		skip_undef          => 1,
 		x_tick_number       => $self->{xticknumber},
 		x_min_value         => $minmass,
 		x_max_value         => $maxmass,
 		x_number_format     => "%.1f",
+		y_number_format     => "%.2f",
 		y_min_value         => $minintensity * $self->{yaxismultiplier},
 		y_max_value         => $maxintensity * $self->{yaxismultiplier},
-		y_label => 'Intensity') or die $graph->error;
+		y_label => $self->{y_label}) or die $graph->error;
 	
 	$graph->set_x_axis_font(gdLargeFont);
 	$graph->set_y_axis_font(gdLargeFont);
@@ -194,6 +207,7 @@ sub plot
 		my $mass = $self->{masses}[$i];
 		my $intensity = $self->{intensities}[$i];
 		my $discardThisAnnotation = 0;
+		my $patternIndex;
 	
 		# by convention, a leading @ means discard this annotation, but
 		# use it for purposes of coloring the peak
@@ -203,9 +217,10 @@ sub plot
 		}
 	
 		PATTERN:
-		foreach $pattern (keys %{$self->{annotationsmatching}}) {
+		for ($patternIndex = 0; $patternIndex < scalar(@{$self->{annotationsmatching}}); $patternIndex += 2) {
+			$pattern = $self->{annotationsmatching}[$patternIndex];
 			if (defined($annot) && $pattern && $annot =~ m/$pattern/) {
-				$match = $self->{annotationsmatching}{$pattern};
+				$match = $self->{annotationsmatching}[$patternIndex + 1];
 				last PATTERN;
 			}
 		}
@@ -215,7 +230,11 @@ sub plot
 	#	print "match $match color $colorname \n";
 		
 		# draw vertical mass peaks and their annotations, if any
-		_myline($graph,$im,$mass,0,$mass,$intensity,$colors{$colorname});
+		_myline($self,$graph,$im,$mass,0,$mass,$intensity,$colors{$colorname});
+
+		my $gdfont = $fontmap{$self->{peakfontsize}};
+		$gdfont = gdMediumBoldFont unless $gdfont;
+
 		# for negative values we label all mass peaks starting at the
 		# bottom of the graph, since we lack the capability to
 		# compute the vertical height of the labels and don't want
@@ -223,9 +242,9 @@ sub plot
 		# GD's stringFT method
 		unless ($discardThisAnnotation) {
 			if ($intensity >= 0) {
-				_myannot($graph,$im,$mass,$intensity,$annot,$colors{$colorname},$self->{xlabeldelta},$self->{ylabeldelta});
+				_myannot($graph,$im,$mass,$intensity,$annot,$colors{$colorname},$self->{xlabeldelta},$self->{ylabeldelta},$gdfont);
 			} else {
-				_myannot($graph,$im,$mass,$minintensity*$self->{yaxismultiplier}*0.95,$annot,$colors{$colorname},$self->{xlabeldelta},0)
+				_myannot($graph,$im,$mass,$minintensity*$self->{yaxismultiplier}*0.95,$annot,$colors{$colorname},$self->{xlabeldelta},0,$gdfont)
 			}
 		}
 		
@@ -238,20 +257,20 @@ sub plot
 }
 
 sub _myline {
-	my($graph,$img,$xb,$yb,$xe,$ye,$color) = @_;
+	my($self,$graph,$img,$xb,$yb,$xe,$ye,$color) = @_;
 	my($xb2,$yb2,$xe2,$ye2);
 
 	($xb2,$yb2) = $graph->val_to_pixel($xb,$yb,1);
 	($xe2,$ye2) = $graph->val_to_pixel($xe,$ye,1);
 	$img->line($xb2,$yb2,$xe2,$ye2,$color);
-	$img->line($xb2,$yb2,$xe2,$ye2,$color);
+	$self->{_hotspots}{$xb} = ['line',$xb2,$yb2,$xe2,$ye2,$self->{linewidth}];
 }
 
 sub _myannot {
-	my($graph,$img,$x,$y,$annot,$color,$xlabeldelta,$ylabeldelta) = @_;
+	my($graph,$img,$x,$y,$annot,$color,$xlabeldelta,$ylabeldelta,$font) = @_;
 	my($x2,$y2) = $graph->val_to_pixel($x,$y,1);
 
-	$img->stringUp(gdLargeFont,$x2-$xlabeldelta,$y2-$ylabeldelta,$annot,$color);
+	$img->stringUp($font,$x2-$xlabeldelta,$y2-$ylabeldelta,$annot,$color);
 }
 
 # swiped from set_clr in GD::Graph
@@ -373,6 +392,11 @@ Default: 'Intensity'
 
 The title of the graph.
 Default: ''
+
+=item peakfontsize
+
+Font size of peak labels; one of 'tiny','small','medium','large'.
+Default: 'medium'
 
 =back
 
