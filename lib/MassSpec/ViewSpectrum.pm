@@ -11,7 +11,7 @@ use GD::Graph::colour qw(:lists :colours);
 
 our @ISA = qw(GD::Graph::Error);
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 
 # Preloaded methods go here.
@@ -35,7 +35,9 @@ my %defaultcolormap = (
 my %Defaults = (
 	width => 500,
 	height => 500,
+	title => '',
 	linewidth => 2,
+	extranegativeheight => 0.1,
 	ylabeldelta => 4, # offset of annotations on y axis measured in pixels
 	xticknumber => 5, # of tick marks on X axis
 	xlabeldelta => 6, # pixels for offset of annotations
@@ -94,6 +96,7 @@ sub plot
 	my $minmass;
 	my $maxmass;
 	my $maxintensity;
+	my $minintensity;
 	
 	my @data_for_graph;
 	
@@ -117,6 +120,7 @@ sub plot
 		$data_for_graph[1][$j] = $intensity;
 		$minmass = $mass unless defined $minmass and $minmass < $mass;
 		$maxmass = $mass unless defined $maxmass and $maxmass > $mass;
+		$minintensity = $intensity unless defined $minintensity and $minintensity < $intensity;
 		$maxintensity = $intensity unless defined $maxintensity and $maxintensity > $intensity;
 		$j++;
 	}
@@ -126,10 +130,19 @@ sub plot
 	# the min and max mass peaks will be obscured by the y axis and the graph's
 	# right boundary
 	#
+	# we also force these boundaries to be multiples of 5
+	#
 	my $massdiff = $maxmass - $minmass;
-	$minmass = int($minmass - 0.04 * $massdiff);
-	$maxmass = int($maxmass + 0.04 * $massdiff);
+	$minmass = int(($minmass - 0.04 * $massdiff)/5.0) * 5;
+	$maxmass = int(($maxmass + 0.04 * $massdiff)/5.0 + 0.5) * 5;
 	$minmass = 0 if $minmass < 0;
+
+	# note that we permit negative intensities; this permits some
+	# interesting visualization capabilities
+	#
+	# extra vertical space is required to make the labels fit
+	$minintensity = 0 if $minintensity > 0;
+	$minintensity -= $self->{extranegativeheight} if $minintensity < 0;
 	
 	my $graph = GD::Graph::lines->new($self->{width},$self->{height});
 	$graph->{graph}->setThickness($self->{linewidth});
@@ -145,6 +158,7 @@ sub plot
 	# height for peak annotations
 	#
 	$graph->set(
+		title               => $self->{title},
 		x_label             => 'm/z',
 		x_label_position    => 0.5,
 		skip_undef          => 1,
@@ -152,11 +166,13 @@ sub plot
 		x_min_value         => $minmass,
 		x_max_value         => $maxmass,
 		x_number_format     => "%.1f",
-		y_min_value         => 0,
+		y_min_value         => $minintensity * $self->{yaxismultiplier},
 		y_max_value         => $maxintensity * $self->{yaxismultiplier},
 		y_label => 'Intensity') or die $graph->error;
 	
-	
+	$graph->set_x_axis_font(gdLargeFont);
+	$graph->set_y_axis_font(gdLargeFont);
+
 	#
 	# draw the axes and their labels, and subsequently use the computed geometry
 	# for scaling and translating our data points and annotations
@@ -192,7 +208,17 @@ sub plot
 		
 		# draw vertical mass peaks and their annotations, if any
 		_myline($graph,$im,$mass,0,$mass,$intensity,$colors{$colorname});
-		_myannot($graph,$im,$mass,$intensity,$annot,$colors{$colorname},$self->{xlabeldelta},$self->{ylabeldelta});
+		# for negative values we label all mass peaks starting at the
+		# bottom of the graph, since we lack the capability to
+		# compute the vertical height of the labels and don't want
+		# to require TrueType font availability in order to use
+		# GD's stringFT method
+		if ($intensity >= 0) {
+			_myannot($graph,$im,$mass,$intensity,$annot,$colors{$colorname},$self->{xlabeldelta},$self->{ylabeldelta});
+		} else {
+			_myannot($graph,$im,$mass,$minintensity*$self->{yaxismultiplier}*0.95,$annot,$colors{$colorname},$self->{xlabeldelta},0);
+		}
+		
 		
 	}
 	
@@ -278,6 +304,8 @@ paradigms such as SVG and Tk.
 
 The current implementation uses a mixture of GD::Graph and native GD, since GD::Graph 1.43 fails to draw the required vertical lines correctly.
 
+Negative peak intensity values are permitted; this permits the drawing of "pseudospectra" which, for example, illustrate peaks present in one spectrum but missing in another.
+
 =head2 OPTIONS
 
 =over 4
@@ -312,6 +340,11 @@ Default: 6
 A ratio, used to permit vertical room for peak annotations.
 Default: 2.0
 
+=item extranegativeheight
+
+For pseudospectra which contain some peaks with negative intensities, this is a fudge factor used to make room for annotations on those peaks underneath those peaks.  This value has the same units as the original spectrum.
+Default: 0.1
+
 =item outputformat
 
 One of 'png', 'jpg' or 'gif'.  Your local GD installation might only support a subset of these.
@@ -324,8 +357,13 @@ Default: 'm/z'
 
 =item y_label
 
-The label which appears on the Y axis
+The label which appears on the Y axis.
 Default: 'Intensity'
+
+=item title
+
+The title of the graph.
+Default: ''
 
 =back
 

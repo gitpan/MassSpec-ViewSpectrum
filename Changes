@@ -8,5 +8,9 @@ Revision history for Perl extension MassSpec::ViewSpectrum.
 		annotation scheme, centered x-axis title, fixed y annotation
 		label offsets, modified x-axis size computation and shortened 
 		x-axis numeric labels
+0.03  Mon Jan 25 15:14:24 2005
+	- added title & extranegativeheight options, adjust x-axis size
+		computation, set fonts for axis labels, permitted negative
+		peak intensities ("pseudospectra")
 
 
