@@ -1,6 +1,0 @@
-Revision history for Perl extension MassSpec::ViewSpectrum.
-
-0.01  Mon Jan 10 15:14:24 2005
-	- original version; created by h2xs 1.23 with options
-		-AX --skip-exporter --use-new-tests -n MassSpec::ViewSpectrum
-
