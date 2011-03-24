@@ -11,7 +11,7 @@ use GD::Graph::colour qw(:lists :colours);
 
 our @ISA = qw(GD::Graph::Error);
 
-our $VERSION = '0.05';
+our $VERSION = '0.07';
 
 
 # Preloaded methods go here.
