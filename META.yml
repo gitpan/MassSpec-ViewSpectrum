@@ -1,10 +1,22 @@
-# http://module-build.sourceforge.net/META-spec.html
-#XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
-name:         MassSpec-ViewSpectrum
-version:      0.06
-version_from: lib/MassSpec/ViewSpectrum.pm
-installdirs:  site
+--- #YAML:1.0
+name:               MassSpec-ViewSpectrum
+version:            0.08
+abstract:           Perl extension for viewing a mass spectrum.
+author:
+    - Jonathan Epstein <Jonathan_Epstein@nih.gov>
+license:            unknown
+distribution_type:  module
+configure_requires:
+    ExtUtils::MakeMaker:  0
+build_requires:
+    ExtUtils::MakeMaker:  0
 requires:
-
-distribution_type: module
-generated_by: ExtUtils::MakeMaker version 6.17
+    GD::Graph:  1.43
+no_index:
+    directory:
+        - t
+        - inc
+generated_by:       ExtUtils::MakeMaker version 6.56
+meta-spec:
+    url:      http://module-build.sourceforge.net/META-spec-v1.4.html
+    version:  1.4
